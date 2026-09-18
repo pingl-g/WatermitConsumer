@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>SampleClient.Web</RootNamespace>
+  </PropertyGroup>
+
+  <!-- A consumer references ONLY the client-side projects. Never the worker, pipeline, extraction,
+       or stages projects. This whole app talks to the backend purely through Azure Storage. -->
+  <ItemGroup>
+    <ProjectReference Include="..\watermit.Contracts\watermit.Contracts.csproj" />
+    <ProjectReference Include="..\watermit.Domain\watermit.Domain.csproj" />
+    <ProjectReference Include="..\watermit.Persistence.Abstractions\watermit.Persistence.Abstractions.csproj" />
+    <ProjectReference Include="..\watermit.Pipeline.Abstractions\watermit.Pipeline.Abstractions.csproj" />
+    <ProjectReference Include="..\watermit.Persistence.Tables\watermit.Persistence.Tables.csproj" />
+  </ItemGroup>
+
+</Project>

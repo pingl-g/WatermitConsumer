@@ -1,0 +1,65 @@
+@using SampleClient.Web.Controllers
+@model StatusVm
+@{
+    var titles = new Dictionary<string, string>
+    {
+        ["A1"] = "Intake & Classify", ["BMD"] = "Document Markdown", ["A23"] = "Header Extract",
+        ["B"] = "Extraction", ["C"] = "Classify Loss", ["DEHU"] = "Chamber Sizing",
+        ["E"] = "WMAG Audit", ["F"] = "Comparative",
+    };
+    var status = Model.Row?.Status.ToString() ?? "Unknown";
+    var terminal = status is "NeedsReview" or "Completed" or "Failed";
+    var done = Model.Present.Count;
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Claim @Model.CaseId — status</title>
+    @if (!terminal) { <meta http-equiv="refresh" content="4" /> }
+    <style>
+        body { font-family:'Segoe UI',system-ui,sans-serif; background:#f5f7fa; color:#1b2432; max-width:760px; margin:26px auto; padding:0 20px; }
+        h1 { font-size:19px; } a { color:#3f6fb0; }
+        .pill { display:inline-block; font-size:12px; font-weight:700; border-radius:20px; padding:3px 11px; background:#e7eefb; color:#2b5cad; }
+        .pill.completed { background:#e4f5ec; color:#1c7a4b; } .pill.needsreview { background:#f7ecd9; color:#9a6a11; } .pill.failed { background:#f8e4e2; color:#b03325; }
+        .muted { color:#5b6675; font-size:13px; }
+        table { width:100%; border-collapse:collapse; margin-top:12px; font-size:13px; }
+        th, td { text-align:left; padding:8px 10px; border-bottom:1px solid #d7dde5; }
+        .done { color:#1c7a4b; font-weight:700; } .pending { color:#9aa4b2; }
+        .err { background:#f8f0ee; border:1px solid #e6cfc9; color:#8a4b3f; border-radius:8px; padding:10px 12px; }
+    </style>
+</head>
+<body>
+    <p><a href="/">← submit another</a></p>
+    <h1>Claim @Model.CaseId</h1>
+    <p>
+        Status <span class="pill @status.ToLowerInvariant()">@status</span>
+        &nbsp; <span class="muted">@done of @Model.Stages.Length stages produced@(terminal ? "" : " · auto-refreshing every 4s")</span>
+    </p>
+    @if (Model.Row?.LastError is { Length: > 0 } e) { <p class="err">@e</p> }
+
+    <table>
+        <thead><tr><th>Stage</th><th>Name</th><th>Produced?</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var s in Model.Stages)
+        {
+            var has = Model.Present.Contains(s);
+            <tr>
+                <td><strong>@s</strong></td>
+                <td>@(titles.TryGetValue(s, out var t) ? t : s)</td>
+                <td>@if (has) { <span class="done">✓ produced</span> } else { <span class="pending">— pending</span> }</td>
+                <td>@if (has) { <a href="/Claim/Stage?caseId=@Model.CaseId&stage=@s">view JSON →</a> }</td>
+            </tr>
+        }
+        </tbody>
+    </table>
+
+    <p class="muted" style="margin-top:18px">
+        Each produced stage is a <code>StageEnvelope&lt;T&gt;</code> at
+        <code>{tenant}/@Model.CaseId/work/OUT~{stage}.json</code>. This page reads status via
+        <code>IClaimStatusReader</code> and lists artifacts by blob prefix — the same signal a richer
+        reviewer would render.
+    </p>
+</body>
+</html>

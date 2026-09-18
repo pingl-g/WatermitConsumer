@@ -1,0 +1,71 @@
+@using Watermit.Contracts
+@model IReadOnlyList<ClaimWorkRow>
+@{
+    var err = TempData["Error"] as string;
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sample consumer — submit a claim</title>
+    <style>
+        body { font-family:'Segoe UI',system-ui,sans-serif; background:#f5f7fa; color:#1b2432; max-width:760px; margin:26px auto; padding:0 20px; }
+        h1 { font-size:20px; } h2 { font-size:16px; margin-top:26px; }
+        .card { background:#fff; border:1px solid #d7dde5; border-radius:12px; padding:20px 22px; }
+        label { display:block; font-weight:600; font-size:13px; margin:12px 0 4px; }
+        input[type=text], input[type=file] { width:100%; padding:8px 10px; border:1px solid #d7dde5; border-radius:7px; font-size:14px; }
+        button { margin-top:16px; background:#3f6fb0; color:#fff; border:0; border-radius:7px; padding:9px 16px; font-weight:600; cursor:pointer; }
+        table { width:100%; border-collapse:collapse; margin-top:10px; font-size:13px; }
+        th, td { text-align:left; padding:7px 9px; border-bottom:1px solid #d7dde5; }
+        .err { color:#b03325; font-weight:600; }
+        .muted { color:#5b6675; font-size:13px; }
+        a { color:#3f6fb0; }
+    </style>
+</head>
+<body>
+    <h1>Submit a claim to the pipeline</h1>
+    <p class="muted">This sample app is a pure <strong>consumer</strong> — it writes files + a Pending row to
+        Azure Storage and the worker (a separate App Service) does the rest.</p>
+
+    <div class="card">
+        @if (!string.IsNullOrEmpty(err)) { <p class="err">@err</p> }
+        <form method="post" action="/Claim/Submit" enctype="multipart/form-data">
+            <label for="claimNumber">Claim number</label>
+            <input type="text" id="claimNumber" name="claimNumber" placeholder="e.g. CLAIM-12345" />
+
+            <label for="name">Name (optional)</label>
+            <input type="text" id="name" name="name" placeholder="e.g. Smith Residence" />
+
+            <label for="files">Documents (select several — FNOL, Vendor Invoice, Dry Logs, Photo Report)</label>
+            <input type="file" id="files" name="files" multiple />
+
+            <button type="submit">Submit for processing →</button>
+        </form>
+    </div>
+
+    <h2>Recent claims</h2>
+    @if (Model.Count == 0)
+    {
+        <p class="muted">No claims yet.</p>
+    }
+    else
+    {
+        <table>
+            <thead><tr><th>Claim #</th><th>Status</th><th>Docs</th><th>Updated</th><th></th></tr></thead>
+            <tbody>
+            @foreach (var r in Model)
+            {
+                <tr>
+                    <td>@(string.IsNullOrWhiteSpace(r.ClaimNumber) ? r.CaseId : r.ClaimNumber)</td>
+                    <td>@r.Status</td>
+                    <td>@r.Documents.Count</td>
+                    <td>@(r.UpdatedUtc?.ToLocalTime().ToString("g") ?? "—")</td>
+                    <td><a href="/Claim/Status/@r.CaseId">track →</a></td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    }
+</body>
+</html>
