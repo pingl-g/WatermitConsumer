@@ -1,0 +1,185 @@
+@using ClaimsManager.Simulator.Controllers
+@using ClaimsManager.Simulator.Models
+@model LaunchVm
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Claims Manager (simulator)</title>
+    <style>
+        body { font-family:'Segoe UI',system-ui,sans-serif; background:#f5f7fa; color:#1b2432;
+               max-width:940px; margin:26px auto; padding:0 20px; font-size:14px; }
+        h1 { font-size:20px; margin-bottom:4px; }
+        h2 { font-size:15px; margin:24px 0 8px; }
+        .muted { color:#5b6675; font-size:13px; }
+        .card { background:#fff; border:1px solid #d7dde5; border-radius:12px; padding:18px 20px; margin-top:14px; }
+
+        .claim-head { display:flex; gap:28px; align-items:baseline; flex-wrap:wrap; }
+        .claim-head .kv { font-size:13px; } .claim-head .kv b { display:block; color:#5b6675; font-weight:600; }
+
+        label { display:block; font-weight:600; font-size:13px; margin:12px 0 4px; }
+        input[type=text], input[type=number], textarea {
+            width:100%; padding:8px 10px; border:1px solid #d7dde5; border-radius:7px;
+            font-size:13px; font-family:inherit; box-sizing:border-box; }
+        textarea { font-family:Consolas,'Courier New',monospace; min-height:260px; white-space:pre; overflow:auto; }
+        .row { display:flex; gap:14px; } .row > div { flex:1; }
+
+        .scenarios { display:flex; flex-wrap:wrap; gap:8px; }
+        .scn { background:#eef2f8; border:1px solid #d7dde5; color:#2b4a72; border-radius:20px;
+               padding:6px 14px; font-size:13px; cursor:pointer; }
+        .scn:hover { background:#e2e9f4; }
+        .scn.active { background:#3f6fb0; border-color:#3f6fb0; color:#fff; }
+
+        .expected { margin-top:10px; background:#f3f7fb; border-left:3px solid #3f6fb0;
+                    padding:9px 12px; font-size:13px; color:#33495f; border-radius:0 6px 6px 0; }
+        .target { margin-top:14px; font-family:Consolas,monospace; font-size:12.5px; color:#5b6675;
+                  background:#f7f9fc; border:1px dashed #d7dde5; border-radius:7px; padding:9px 11px;
+                  word-break:break-all; }
+        .target b { color:#1b2432; }
+
+        .launch { margin-top:16px; display:flex; align-items:center; gap:14px; }
+        button.go { background:#3f6fb0; color:#fff; border:0; border-radius:7px;
+                    padding:10px 20px; font-weight:600; font-size:14px; cursor:pointer; }
+        button.go:hover { background:#365f97; }
+        .chk { font-size:13px; color:#5b6675; display:flex; align-items:center; gap:6px; }
+        .warn { color:#b03325; font-size:13px; margin-top:10px; display:none; }
+    </style>
+</head>
+<body>
+    <h1>Claims Manager <span class="muted">(simulator)</span></h1>
+    <p class="muted">Test client for <code>POST {claimId}/attachments</code> on SampleClient.Web.
+       The Launch button performs a real cross-origin, top-level form POST — the same thing the
+       production claim page does.</p>
+
+    <div class="card">
+        <div class="claim-head">
+            <div class="kv"><b>Claim number</b>@Scenarios.SpecClaimNumber</div>
+            <div class="kv"><b>Insured</b>Morrone, Micheal</div>
+            <div class="kv"><b>Loss type</b>Water — Category 2</div>
+            <div class="kv"><b>Status</b>Open</div>
+        </div>
+    </div>
+
+    <h2>Scenario</h2>
+    <div class="scenarios">
+        @foreach (var s in Model.All)
+        {
+            <button type="button" class="scn @(s.Key == Model.Selected.Key ? "active" : "")"
+                    data-key="@s.Key" data-claimid="@s.ClaimId" data-expected="@s.Expected">@s.Name</button>
+        }
+    </div>
+    <div class="expected" id="expected">@Model.Selected.Expected</div>
+
+    @* Scenario bodies live in hidden divs, not a <script> block: element text decodes HTML
+       entities, so Razor's encoding round-trips safely. Inlining JSON into <script> would not. *@
+    @foreach (var s in Model.All)
+    {
+        <div class="scn-json" data-key="@s.Key" hidden>@s.Json</div>
+    }
+
+    <form method="post" id="launch-form" class="card">
+        <div class="row">
+            <div>
+                <label for="claimId">claimId <span class="muted">(route segment)</span></label>
+                <input type="number" id="claimId" value="@Model.Selected.ClaimId" />
+            </div>
+            <div>
+                <label for="classId">classId <span class="muted">(form field)</span></label>
+                <input type="text" id="classId" name="classId" value="CLS-7" />
+            </div>
+            <div>
+                <label for="baseUrl">SampleClient.Web base URL</label>
+                <input type="text" id="baseUrl" value="@Model.BaseUrl" />
+            </div>
+        </div>
+
+        <label for="payload">payload <span class="muted">(form field — edit freely)</span></label>
+        <textarea id="payload" name="payload" spellcheck="false">@Model.Selected.Json</textarea>
+
+        <div class="target">POST <b id="target-url"></b></div>
+        <p class="warn" id="warn">Heads up: this payload is not valid JSON. Sending it anyway — that is the point of the malformed scenario.</p>
+
+        <p class="warn" id="blocked">Your browser blocked the popup. Allow popups for this site, then click Launch again.</p>
+
+        <div class="launch">
+            <button type="submit" class="go">Launch Sample Client →</button>
+            <span class="chk">opens in a popup window — relaunching reuses the same one</span>
+        </div>
+    </form>
+
+    <p class="muted" style="margin-top:18px">
+        Start SampleClient.Web first (<code>@Model.BaseUrl</code>). If the Launch button lands on a
+        connection error, that app is not running or is on a different port — change the base URL above.
+    </p>
+
+<script>
+(function () {
+    var form = document.getElementById('launch-form');
+    var claimId = document.getElementById('claimId');
+    var baseUrl = document.getElementById('baseUrl');
+    var payload = document.getElementById('payload');
+    var target = document.getElementById('target-url');
+    var warn = document.getElementById('warn');
+    var blocked = document.getElementById('blocked');
+    var expected = document.getElementById('expected');
+
+    // A fixed window name is what makes every launch reuse the same popup: the form targets
+    // the name, and window.open with an existing name returns that window rather than a new one.
+    var POPUP_NAME = 'sampleClientWindow';
+    var POPUP_FEATURES = 'popup=yes,width=1280,height=860,scrollbars=yes,resizable=yes';
+
+    var bodies = {};
+    document.querySelectorAll('.scn-json').forEach(function (d) { bodies[d.dataset.key] = d.textContent; });
+
+    function actionUrl() {
+        return baseUrl.value.replace(/\/+$/, '') + '/Claim/' + (claimId.value || '0') + '/attachments';
+    }
+
+    function refresh() {
+        target.textContent = actionUrl();
+        var text = payload.value.trim();
+        var bad = false;
+        if (text.length) { try { JSON.parse(text); } catch (e) { bad = true; } }
+        warn.style.display = bad ? 'block' : 'none';
+    }
+
+    [claimId, baseUrl, payload].forEach(function (el) {
+        el.addEventListener('input', refresh);
+    });
+
+    document.querySelectorAll('.scn').forEach(function (b) {
+        b.addEventListener('click', function () {
+            document.querySelectorAll('.scn').forEach(function (o) { o.classList.remove('active'); });
+            b.classList.add('active');
+            payload.value = bodies[b.dataset.key] || '';
+            claimId.value = b.dataset.claimid;
+            expected.textContent = b.dataset.expected;
+            refresh();
+        });
+    });
+
+    form.addEventListener('submit', function (e) {
+        form.action = actionUrl();
+        form.target = POPUP_NAME;
+
+        // Opened synchronously inside the submit handler so popup blockers treat it as
+        // user-initiated. On a relaunch this returns the window already named POPUP_NAME
+        // (features are ignored then, so the user's own resizing survives), and the form
+        // posts into it.
+        var win = window.open('', POPUP_NAME, POPUP_FEATURES);
+        if (!win) {
+            e.preventDefault();
+            blocked.style.display = 'block';
+            return;
+        }
+        blocked.style.display = 'none';
+        // Raise it after the post has been handed off.
+        setTimeout(function () { try { win.focus(); } catch (err) { /* cross-origin */ } }, 0);
+    });
+
+    refresh();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,313 @@
+@using System.Globalization
+@using SampleClient.Web.Controllers
+@model AttachmentsVm
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Send File for AI Insights — claim @Model.ClaimId</title>
+    <style>
+        body { font-family:'Segoe UI',system-ui,sans-serif; background:#fff; color:#4a4a4a; margin:0; font-size:14px; }
+
+        .panel-head { display:flex; align-items:center; justify-content:space-between;
+                      padding:14px 18px; border-bottom:1px solid #e3e7eb; }
+        .panel-title { font-size:15px; font-weight:600; color:#3d4f5d; }
+        .chev { background:none; border:0; font-size:18px; color:#3d4f5d; cursor:pointer; line-height:1; padding:0 4px; }
+
+        .panel-body { padding:14px 20px 0; }
+        .panel-body[hidden] { display:none; }
+
+        .grid-box { border:1px solid #e3e7eb; }
+        .grid-strip { height:38px; border-bottom:1px solid #e3e7eb; }
+        .grid-tools { display:flex; justify-content:flex-end; align-items:center;
+                      height:40px; padding:0 14px; border-bottom:1px solid #e3e7eb; }
+        .refresh { background:none; border:0; cursor:pointer; color:#6b7c8c; font-size:13px;
+                   display:inline-flex; align-items:center; gap:6px; }
+        .refresh:hover { color:#3d4f5d; }
+
+        table { width:100%; border-collapse:collapse; }
+        th { background:#efefef; color:#444; font-weight:600; font-size:13px; text-align:left;
+             padding:12px 14px; border-bottom:1px solid #e0e0e0; cursor:pointer; white-space:nowrap; user-select:none; }
+        th.nosort { cursor:default; }
+        th .arrow { color:#666; font-size:10px; margin-left:6px; visibility:hidden; }
+        th.sorted { background:#e8e8e8; }
+        th.sorted .arrow { visibility:visible; }
+        td { padding:11px 14px; border-bottom:1px solid #eee; font-size:13px; }
+        td.sorted { background:#f2f2f2; }
+        td.date { white-space:nowrap; }
+        .col-check { width:60px; padding-left:18px; }
+        tbody tr:last-child td { border-bottom:0; }
+
+        .fname { display:inline-block; max-width:300px; overflow:hidden; text-overflow:ellipsis;
+                 white-space:nowrap; vertical-align:middle; color:#3ba3d0; cursor:pointer; }
+        .fname:hover { text-decoration:underline; }
+
+        .pager { display:flex; align-items:center; background:#fafafa; border-top:1px solid #e3e7eb;
+                 font-size:13px; color:#666; }
+        .pager-lead { width:48px; height:46px; border-right:1px solid #e3e7eb; }
+        .pager-nav { display:flex; align-items:center; gap:10px; padding:0 14px; }
+        .pager-nav button { background:none; border:0; cursor:pointer; color:#8a8a8a; font-size:13px; padding:2px 4px; }
+        .pager-nav button:disabled { color:#d0d0d0; cursor:default; }
+        .pager-nav .page { color:#b07d2b; }
+        .pager-nav .page.current { font-weight:700; color:#8a5f18; }
+        .pager select { border:1px solid #ccc; border-radius:3px; padding:3px 6px; font-size:13px; color:#555; }
+        .pager .count { margin-left:14px; }
+
+        .actions { text-align:center; margin:22px 0 26px; }
+        .actions button { color:#fff; border:0; border-radius:4px; padding:9px 26px;
+                          font-size:14px; cursor:pointer; margin:0 6px; }
+        .btn-reset { background:#f5566c; } .btn-cancel { background:#ee5253; } .btn-submit { background:#2eafd4; }
+
+        .err { margin:16px 20px; background:#f8f0ee; border:1px solid #e6cfc9; color:#8a4b3f;
+               border-radius:6px; padding:11px 13px; font-size:13px; }
+        .empty { padding:22px 14px; color:#8a8a8a; font-size:13px; }
+    </style>
+</head>
+<body>
+    <div class="panel-head">
+        <span class="panel-title">Send File for AI Insights</span>
+        <button type="button" class="chev" id="chev" aria-expanded="true" aria-controls="panel-body" title="Collapse">&#9662;</button>
+    </div>
+
+    @if (Model.Error is { Length: > 0 } error)
+    {
+        <p class="err">@error</p>
+    }
+
+    <div class="panel-body" id="panel-body">
+        <form method="post" action="/Claim/@Model.ClaimId/attachments/send" id="grid-form">
+            <input type="hidden" name="claimNumber" value="@Model.ClaimNumber" />
+
+            <div class="grid-box">
+                <div class="grid-strip"></div>
+                <div class="grid-tools">
+                    <button type="button" class="refresh" id="refresh">&#8635; Refresh</button>
+                </div>
+
+                <table id="grid">
+                    <thead>
+                        <tr>
+                            <th class="col-check nosort">
+                                <input type="checkbox" id="check-all" title="Select all on this page" />
+                            </th>
+                            <th data-sort="name">File Name<span class="arrow">&#9660;</span></th>
+                            <th data-sort="size">File Size(KB)<span class="arrow">&#9660;</span></th>
+                            <th data-sort="comments">Comments<span class="arrow">&#9660;</span></th>
+                            <th data-sort="date" class="sorted">Date Uploaded<span class="arrow">&#9660;</span></th>
+                            <th data-sort="by">Uploaded By<span class="arrow">&#9660;</span></th>
+                            <th data-sort="type">Document Types<span class="arrow">&#9660;</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var f in Model.Files)
+                    {
+                        var sizeKb = f.FileSize / 1024.0;
+                        <tr data-name="@f.FileName.ToLowerInvariant()"
+                            data-size="@f.FileSize"
+                            data-comments="@((f.Comments ?? string.Empty).ToLowerInvariant())"
+                            data-date="@f.DateUploaded.UtcTicks"
+                            data-by="@((f.UpdatedBy ?? string.Empty).ToLowerInvariant())"
+                            data-type="@((f.DocumentType ?? string.Empty).ToLowerInvariant())">
+                            <td class="col-check">
+                                <input type="checkbox" name="fileUrls" value="@f.FileUrl" />
+                            </td>
+                            @* Rendered as a span, not an <a>: fetching the bytes from the Claims Manager
+                               container is not wired up yet — a download action hooks in here. *@
+                            <td><span class="fname" title="@f.FileName">@f.FileName</span></td>
+                            <td>@sizeKb.ToString("N0", CultureInfo.CurrentCulture)</td>
+                            <td>@f.Comments</td>
+                            <td class="date sorted">@f.DateUploaded.ToString("M/d/yyyy h:mm:ss tt", CultureInfo.InvariantCulture)</td>
+                            <td>@f.UpdatedBy</td>
+                            <td>@f.DocumentType</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+
+                @if (Model.Files.Count == 0)
+                {
+                    <p class="empty">No attachments on this claim.</p>
+                }
+                else
+                {
+                    <div class="pager">
+                        <div class="pager-lead"></div>
+                        <div class="pager-nav">
+                            <button type="button" data-go="first" title="First">&#9198;</button>
+                            <button type="button" data-go="prev" title="Previous">&#9666;</button>
+                            <span id="pages"></span>
+                            <button type="button" data-go="next" title="Next">&#9656;</button>
+                            <button type="button" data-go="last" title="Last">&#9197;</button>
+                            <label for="page-size" style="margin-left:14px">Page size:</label>
+                            <select id="page-size">
+                                <option value="5" selected>5</option>
+                                <option value="10">10</option>
+                                <option value="25">25</option>
+                                <option value="50">50</option>
+                            </select>
+                            <span class="count" id="count"></span>
+                        </div>
+                    </div>
+                }
+            </div>
+
+            <div class="actions">
+                <button type="button" class="btn-reset" id="reset">Reset</button>
+                <button type="button" class="btn-cancel" id="cancel">Cancel</button>
+                <button type="submit" class="btn-submit">Submit</button>
+            </div>
+        </form>
+    </div>
+
+<script>
+(function () {
+    var tbody = document.querySelector('#grid tbody');
+    if (!tbody) return;
+
+    var rows = Array.prototype.slice.call(tbody.querySelectorAll('tr'));
+    var pageSizeEl = document.getElementById('page-size');
+    var pagesEl = document.getElementById('pages');
+    var countEl = document.getElementById('count');
+    var checkAll = document.getElementById('check-all');
+    var page = 1;
+    // The grid arrives newest-first from the server, so start matching that.
+    var sortKey = 'date', sortDesc = true;
+
+    var NUMERIC = { size: true, date: true };
+
+    function pageSize() { return pageSizeEl ? parseInt(pageSizeEl.value, 10) : rows.length; }
+    function pageCount() { return Math.max(1, Math.ceil(rows.length / pageSize())); }
+
+    function sortRows() {
+        rows.sort(function (a, b) {
+            var x = a.dataset[sortKey] || '', y = b.dataset[sortKey] || '', c;
+            if (NUMERIC[sortKey]) {
+                c = (parseFloat(x) || 0) - (parseFloat(y) || 0);
+            } else {
+                c = x < y ? -1 : x > y ? 1 : 0;
+            }
+            return sortDesc ? -c : c;
+        });
+        rows.forEach(function (r) { tbody.appendChild(r); });
+    }
+
+    function markSortedColumn() {
+        document.querySelectorAll('#grid th').forEach(function (th) {
+            var on = th.dataset.sort === sortKey;
+            th.classList.toggle('sorted', on);
+            var arrow = th.querySelector('.arrow');
+            if (arrow) arrow.innerHTML = sortDesc ? '&#9660;' : '&#9650;';
+        });
+        var index = Array.prototype.findIndex.call(
+            document.querySelectorAll('#grid th'),
+            function (th) { return th.dataset.sort === sortKey; });
+        rows.forEach(function (r) {
+            var cells = r.querySelectorAll('td');
+            cells.forEach(function (td, i) { td.classList.toggle('sorted', i === index); });
+        });
+    }
+
+    function renderPager() {
+        if (!pagesEl) return;
+        var total = pageCount();
+        pagesEl.innerHTML = '';
+        for (var p = 1; p <= total; p++) {
+            var b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'page' + (p === page ? ' current' : '');
+            b.textContent = String(p);
+            b.dataset.page = String(p);
+            pagesEl.appendChild(b);
+        }
+        document.querySelector('[data-go="first"]').disabled = page === 1;
+        document.querySelector('[data-go="prev"]').disabled = page === 1;
+        document.querySelector('[data-go="next"]').disabled = page === total;
+        document.querySelector('[data-go="last"]').disabled = page === total;
+        countEl.textContent = rows.length + ' item' + (rows.length === 1 ? '' : 's') +
+                              ' in ' + total + ' page' + (total === 1 ? '' : 's');
+    }
+
+    function syncCheckAll() {
+        if (!checkAll) return;
+        var visible = rows.filter(function (r) { return r.style.display !== 'none'; });
+        var boxes = visible.map(function (r) { return r.querySelector('input[name="fileUrls"]'); });
+        checkAll.checked = boxes.length > 0 && boxes.every(function (b) { return b.checked; });
+    }
+
+    function render() {
+        var size = pageSize(), start = (page - 1) * size;
+        rows.forEach(function (r, i) {
+            r.style.display = (i >= start && i < start + size) ? '' : 'none';
+        });
+        renderPager();
+        syncCheckAll();
+    }
+
+    document.querySelectorAll('#grid th[data-sort]').forEach(function (th) {
+        th.addEventListener('click', function () {
+            var key = th.dataset.sort;
+            if (key === sortKey) { sortDesc = !sortDesc; } else { sortKey = key; sortDesc = false; }
+            sortRows(); markSortedColumn(); page = 1; render();
+        });
+    });
+
+    if (pagesEl) {
+        pagesEl.addEventListener('click', function (e) {
+            var b = e.target.closest('button[data-page]');
+            if (!b) return;
+            page = parseInt(b.dataset.page, 10);
+            render();
+        });
+        document.querySelectorAll('.pager-nav [data-go]').forEach(function (b) {
+            b.addEventListener('click', function () {
+                var go = b.dataset.go, total = pageCount();
+                page = go === 'first' ? 1 : go === 'prev' ? Math.max(1, page - 1)
+                     : go === 'next' ? Math.min(total, page + 1) : total;
+                render();
+            });
+        });
+        pageSizeEl.addEventListener('change', function () { page = 1; render(); });
+    }
+
+    if (checkAll) {
+        checkAll.addEventListener('change', function () {
+            rows.filter(function (r) { return r.style.display !== 'none'; })
+                .forEach(function (r) { r.querySelector('input[name="fileUrls"]').checked = checkAll.checked; });
+        });
+    }
+    tbody.addEventListener('change', function (e) {
+        if (e.target.name === 'fileUrls') syncCheckAll();
+    });
+
+    document.getElementById('refresh').addEventListener('click', function () {
+        sortRows(); markSortedColumn(); page = 1; render();
+    });
+
+    document.getElementById('reset').addEventListener('click', function () {
+        rows.forEach(function (r) { r.querySelector('input[name="fileUrls"]').checked = false; });
+        syncCheckAll();
+    });
+
+    document.getElementById('cancel').addEventListener('click', function () {
+        if (history.length > 1) { history.back(); } else { window.location = '/'; }
+    });
+
+    document.getElementById('grid-form').addEventListener('submit', function (e) {
+        var any = rows.some(function (r) { return r.querySelector('input[name="fileUrls"]').checked; });
+        if (!any) { e.preventDefault(); alert('Select at least one file.'); }
+    });
+
+    document.getElementById('chev').addEventListener('click', function () {
+        var body = document.getElementById('panel-body'), open = !body.hidden;
+        body.hidden = open;
+        this.innerHTML = open ? '&#9656;' : '&#9662;';
+        this.setAttribute('aria-expanded', String(!open));
+    });
+
+    markSortedColumn();
+    render();
+})();
+</script>
+</body>
+</html>

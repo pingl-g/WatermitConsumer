@@ -2,6 +2,7 @@ using Azure;
 using Azure.Storage.Blobs;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
+using SampleClient.Web.Models;
 using Watermit.Contracts;
 using Watermit.Domain;
 using Watermit.Persistence;                 // ICaseRepository, IBlobStore
@@ -141,6 +142,51 @@ public sealed class ClaimController : Controller
             return NotFound("That stage has not been produced yet.");
         }
     }
+
+    // POST /Claim/{claimId}/attachments  — the Claims Manager launch hand-off.
+    // Claims Manager posts a top-level browser form (so the JSON arrives as a form field,
+    // not a request body) and the user lands on the file-picker grid.
+    [HttpPost("/Claim/{claimId:long}/attachments")]
+    [IgnoreAntiforgeryToken]   // cross-app POST from Claims Manager; authenticate the caller instead
+    public IActionResult Attachments([FromRoute] long claimId, [FromForm] string classId, [FromForm] string payload)
+    {
+        var request = ClaimAttachmentsRequest.TryParse(payload, out var error);
+        if (request is null)
+            return View(new AttachmentsVm(claimId, string.Empty, Array.Empty<ClaimAttachment>(), error));
+
+        // The route value is authoritative; a mismatch means the two apps disagree about the claim.
+        if (request.ClaimId != claimId)
+            return View(new AttachmentsVm(claimId, request.ClaimNumber, Array.Empty<ClaimAttachment>(),
+                $"claimId mismatch: route {claimId}, payload {request.ClaimId}."));
+
+        // Newest first, matching the grid's default sort on Date Uploaded.
+        var files = request.Files
+            .Where(f => !string.IsNullOrWhiteSpace(f.FileName))
+            .OrderByDescending(f => f.DateUploaded)
+            .ToList();
+
+        return View(new AttachmentsVm(claimId, request.ClaimNumber, files, null));
+    }
+
+    // POST /Claim/{claimId}/attachments/send  — the grid's Submit button.
+    // NOT wired to the pipeline yet: copying the selected blobs out of the Claims Manager
+    // container (and validating each fileUrl against ClaimsManager:AllowedContainers) still
+    // has to happen before CreateCaseAsync + EnqueueAsync can run, as Submit does for uploads.
+    [HttpPost("/Claim/{claimId:long}/attachments/send")]
+    [IgnoreAntiforgeryToken]
+    public IActionResult SendForInsights([FromRoute] long claimId, [FromForm] string? claimNumber, [FromForm] List<string>? fileUrls)
+    {
+        var picked = (fileUrls ?? new()).Where(u => !string.IsNullOrWhiteSpace(u)).ToList();
+        if (picked.Count == 0) return BadRequest("Select at least one file.");
+
+        return Content(
+            $"Claim {claimId} ({claimNumber}) — {picked.Count} file(s) selected:\n  " +
+            string.Join("\n  ", picked),
+            "text/plain; charset=utf-8");
+    }
 }
 
 public sealed record StatusVm(string CaseId, ClaimWorkRow? Row, string[] Stages, HashSet<string> Present);
+
+public sealed record AttachmentsVm(
+    long ClaimId, string ClaimNumber, IReadOnlyList<ClaimAttachment> Files, string? Error);

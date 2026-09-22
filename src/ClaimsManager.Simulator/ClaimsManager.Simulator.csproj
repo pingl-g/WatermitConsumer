@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>ClaimsManager.Simulator</RootNamespace>
+  </PropertyGroup>
+
+  <!-- Deliberately references NOTHING. This project stands in for the real Claims Manager,
+       which is a separate application that knows SampleClient.Web only by its URL and the
+       shape of the form post. Adding a ProjectReference here would hide contract drift. -->
+
+</Project>

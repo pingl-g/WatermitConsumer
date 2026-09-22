@@ -21,6 +21,7 @@ var app = builder.Build();
 await app.Services.InitWatermitPersistenceAsync();
 
 app.UseStaticFiles();
+app.MapControllers();                                             // attribute routes, e.g. /Claim/{claimId}/attachments
 app.MapControllerRoute(name: "default", pattern: "{controller=Claim}/{action=Index}/{id?}");
 
 app.Run();

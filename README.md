@@ -21,7 +21,8 @@ watermit-consumer-kit/
    ├─ watermit.Persistence.Abstractions/# ICaseRepository, IBlobStore
    ├─ watermit.Pipeline.Abstractions/   # IPipelineDispatcher, IClaimStatusReader, IClaimWorkList
    ├─ watermit.Persistence.Tables/      # Azure Tables + Blob implementation + DI registration
-   └─ SampleClient.Web/                 # ← the sample consumer app (start here)
+   ├─ SampleClient.Web/                 # ← the sample consumer app (start here)
+   └─ ClaimsManager.Simulator/          # test client for the Claims Manager hand-off (see its README)
 ```
 
 These five `watermit.*` projects are the **entire** client dependency set. A consumer must **never**
@@ -85,6 +86,22 @@ Open the printed URL. Then:
 
 (For anything to *process*, a worker must be running against the same storage account. Without a worker,
 submitted claims simply stay `Pending` — which still proves the client side works.)
+
+---
+
+## The Claims Manager hand-off
+
+Besides its own submit form, `SampleClient.Web` accepts claims launched from **Claims Manager**, an
+existing web app. Clicking **Launch Sample Client** there performs a top-level browser form POST:
+
+```
+POST /Claim/{claimId:long}/attachments     fields: classId, payload (JSON as a string)
+```
+
+`SampleClient.Web` parses the payload and renders the **Send File for AI Insights** grid of the
+claim's attachments. To exercise this locally — including the mismatch, malformed-payload and
+bigint-`claimId` cases — run `src/ClaimsManager.Simulator`, which stands in for Claims Manager.
+See [its README](src/ClaimsManager.Simulator/README.md) for the full contract and scenario list.
 
 ---
 
