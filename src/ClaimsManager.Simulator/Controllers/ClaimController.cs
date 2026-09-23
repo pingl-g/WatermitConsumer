@@ -6,7 +6,7 @@ namespace ClaimsManager.Simulator.Controllers;
 /// <summary>
 /// Stands in for the Claims Manager claim page. The only thing that matters here is the
 /// shape of the hand-off: a top-level browser form POST to
-/// {SampleClient:BaseUrl}/Claim/{claimId}/attachments carrying "classId" and "payload".
+/// {SampleClient:BaseUrl}/Claim/{claimId}/attachments carrying "token" and "payload".
 /// Nothing is referenced from SampleClient.Web — this is a genuine cross-app client.
 /// </summary>
 public sealed class ClaimController : Controller

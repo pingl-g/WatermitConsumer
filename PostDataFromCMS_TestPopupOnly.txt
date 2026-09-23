@@ -1,0 +1,619 @@
+<%@ Control %>
+<style>
+  .customAddVehicleBtn {
+    padding: .35em .5em !important;
+    position: absolute;
+    top: 1.6em;
+    left: 2.25em;
+  }
+  .hiddenHyperlinkCell
+  {
+    pointer-events: none;
+  }
+</style>
+<script type="text/javascript">
+
+  var selectedItems = [];
+  var selectedFiles = [];
+  var selected = {};
+  var count=0;
+
+  function onAddNewAudTransRequest(sender,args){
+    //$findByControlId("AttachmentsCGGridView").get_masterTableView().rebind();
+    $sq("#addNewAudTransRequestPanel").css("display", "block");
+    $sq("#addNewAudTransRequestSection").css("display", "none");
+
+  }
+
+  function updateGridCGRequestsValues(){}
+
+  function AddNewAudioTranscriptRequest(sender, args){
+
+    var currentATRequestnumber = "";
+
+    var currentUserName = '<%= {rt.CurrentUser.DisplayName}%>';
+    var currentUserId = '<%= {rt.CurrentUser.UserId}%>';
+
+
+    if(count < 1){
+      $sq("#addNewAudTransRequestPanel").css("display", "block");
+      alert("Please select atleast one attachment");
+      $findByControlId("btnCreateAudTransRequest").set_autoPostBack(false); // cancel post back
+    }     
+    else if(count > 1){
+      $sq("#addNewAudTransRequestPanel").css("display", "block");
+      alert("A single file can be used to send a request.");
+      $findByControlId("btnCreateAudTransRequest").set_autoPostBack(false); // cancel post back
+    }     
+    else      
+    {
+
+      var ATattachmentsFldids = selectedItems;
+      currentATRequestnumber = CreateATGuid();
+
+      var webServiceATRequestUrl =  $findByControlId("oDataSendAudTranscript").get_serviceUrl() + "USP_ContentsAudTRansRequest";
+      // console.log(webServiceUrl);
+      webServiceATRequestUrl = window.location.protocol+ '//' + window.location.host + webServiceATRequestUrl.substr(webServiceATRequestUrl.indexOf("/sequenceservices"),webServiceATRequestUrl.length);
+      // console.log(webServiceATRequestUrl);
+
+
+
+      var params = "?";
+      //params += "fldIActId="+ '<%= {wf.WorkflowInstanceId}%>' + "l" ;
+      //params += "&fldIWfId="+ '<%= {wf.WorkflowInstanceId}%>' + "l" ;
+      //params += "&fldMasterIWfId="+ '<%= {wf.MasterWorkflowInstanceId}%>' + "l" ;
+      params += "&AssignmentId="+ '<%= { mwf.Variables["AssignmentID"] } %>' + "l";   
+      params += "&ClaimId="+ '<%= { mwf.Variables["ClaimID"] } %>' + "l";
+      params += "&currentATRequestnumber='"+ currentATRequestnumber + "'";
+      params += "&attachmentsFldids='"+ ATattachmentsFldids + "'";
+      params += "&CreatedById="+ currentUserId;
+      params += "&CreatedByName='"+ currentUserName + "'";
+
+      //alert("after");
+      webServiceATRequestUrl += params;
+
+      console.log(webServiceATRequestUrl);
+
+
+      //calling the below function to add a AT request to AT request table and then calling a function to send AT reqeust to IS
+      createATRequest(webServiceATRequestUrl,currentATRequestnumber);	
+
+    }
+
+  }
+
+
+  function createATRequest(webServiceATRequestUrl,currentATRequestnumber)
+  {
+    $sq.ajax({
+      type: "get",
+      contentType:  "application/json; charset=utf-8",
+      dataType:   "json",
+      url:      webServiceATRequestUrl,
+      headers:    {"X-SqXsrfToken": $sq("#__SqXsrfTokenValue").val() },
+      success: function (data) {
+        if (data && data.d)
+        { 
+          sendAudioTransacriptionRequest(currentATRequestnumber);
+        }
+        $findByControlId("GridAudTransRequests").get_masterTableView().rebind();
+
+      },
+      error: function (data, textStatus, XmlHttpRequest1) {
+        flagsuccess = 0;
+        alert("Failed to save data in Transcription request");
+
+      }
+    });
+
+
+  }	  
+
+  function sendAudioTransacriptionRequest(currentATRequestnumber)
+  {
+    var ClaimNumber = '<%= { {DataModel}.Query("ref:ns0/USP_GetClaimMinInfo", new object[]{wf.Variables["ClaimID"]})["ClaimNumber"]} %>';               
+    var AssignmentID = '<%= { mwf.Variables["AssignmentID"] } %>'
+    var ClaimID = '<%= { mwf.Variables["ClaimID"] } %>'
+    var Source = 'AudioTransription';
+    var AT_RequestNumber = currentATRequestnumber;
+    var selectedAttachmentIds = selectedItems.join(",");
+
+    $sq.ajax({
+      type: "POST",
+      url: window.location.protocol+ '//' + window.location.host+ "/_vti_bin/Flowtime/ProcessesService.svc/StartWorkflow",
+      data: JSON.stringify(
+        {
+          workflowId:"4b93ee6d-e142-48a6-ae1b-a52b21a29971", //Id of workflow BrightClaim Integration Create Post Data 
+          variablesValues:[{Key:"AssignmentID", Value:AssignmentID}, 
+                           {Key:"ClaimNumber", Value:ClaimNumber},
+                           {Key:"ClaimID", Value: ClaimID},
+                           {Key:"Source", Value:Source},
+                           {Key:"CG_ClaimNumber", Value:AT_RequestNumber},
+                           {Key:"selectedAttachmentsfldid", Value:selectedAttachmentIds}
+                          ]
+        }),
+      headers:
+      {
+        "uiculture": "en-US",
+        "culture": "en-US",
+        "theme": "/Flowtime/Shared Resources/Themes/Sequence8/",
+        "X-SqXsrfToken": $sq("#__SqXsrfTokenValue").val(),
+        "config": "Portal"
+      },
+      dataType: "json",
+      contentType: "application/json; charset=utf-8",
+      success: function (data) {
+
+      },
+      error: function (error) {
+
+      }
+    });
+
+    clearATRequestFields()
+  }
+
+  /***** ======= Get Data On Row Selection function Start ========= *****/
+  function checkRowSelected(sender, args)
+  {   
+    var grid = $findByControlId("AttachmentsCGGridView");
+    var masterTable = grid.get_masterTableView();
+    var row = masterTable.get_dataItems();    
+    var selectedIDs = args.getDataKeyValue("fldId");
+
+    var selectedRows = masterTable.get_selectedItems(); 
+    count = selectedRows.length;  
+
+
+    if (!selected[selectedIDs]) {
+      selected[selectedIDs] = true;
+      Array.add(selectedItems, selectedIDs); 
+    } 
+
+  }
+  /***** ======= Get Data On Row Selection Function Start ========= *****/
+
+  /***** ======= Get Data On Row De-Selection Function Start ========= *****/
+  function checkRowDeSelected(sender,args)
+  {
+    var selectedIDs = args.getDataKeyValue("fldId");
+
+    if (selected[selectedIDs]) {      
+      var selectedIdsIndex = selectedItems.indexOf(selectedIDs);
+      if(selectedIdsIndex > -1){
+        selectedItems.splice(selectedIdsIndex, 1);
+      }
+      selected[selectedIDs] = null;
+
+
+      count = count - 1;  
+
+    }
+  }
+  /***** ======= Get Data On Row De-Selection Function End ========= *****/
+
+  function CreateATGuid() {
+    function _p8(s) {
+      var p = (Math. random(). toString(16)+"000000000"). substr(2,8);
+      return s ? "-" + p. substr(0,4) + "-" + p. substr(4,4) : p ;
+    }
+    return _p8() + _p8(true) + _p8(true) + _p8();
+  }
+
+
+  function openViewAudioTransacriptionPopup(RequestId)
+  {
+    ATRequestId = RequestId;
+
+    //console.log("AMFApproveYes:::"+AMFInvoiceNumber);
+    var ATRequest_RUNTIME_URL =  '<%= {rt.HttpRequest.Url.Scheme + "://" + rt.HttpRequest.Url.Authority + "/_layouts/RunTime.aspx?culture=en-US&uiculture=en-US&_weSideBarState=collapsed"}  %>';
+
+    var ATRequestworkspaceid = "531cd7ee-2600-479d-912b-07a94a09a106";//BrightClaim Contents Audio Transcription popup
+
+
+    var START_CONTENTS_MASTER_WORKFLOW_URL_ATRequest = ATRequest_RUNTIME_URL + "&WorkflowSpaceId=" + ATRequestworkspaceid + "&RequestId=" + ATRequestId;
+
+    //console.log("url:::"+START_CONTENTS_MASTER_WORKFLOW_URL_ATRequest);
+    PopupCenter(START_CONTENTS_MASTER_WORKFLOW_URL_ATRequest, "Contents Audio Transcription Results", 1100, 700);
+
+  }
+  function clearATRequestFields()
+  {
+    if($findByControlId("AttachmentsCGGridView") != null)
+    {
+      $findByControlId("AttachmentsCGGridView").clearSelectedItems();
+    }
+  }
+
+  function cancelATRequestCommand()
+  {
+    $sq("#addNewAudTransRequestPanel").css("display", "none");
+    $sq("#addNewAudTransRequestSection").css("display", "inline-block");
+    $sq("#collapseAudTransGrid").addClass("show");
+    clearATRequestFields();
+  }
+  function updateGridATRequestsValues(argument)
+  {          
+    var gridATRequests = $findByControlId(argument); 
+    var MasterTableATRequests = gridATRequests.get_masterTableView();
+    var dataItemsATRequests =MasterTableATRequests.get_dataItems();
+    for (var i = 0; i < dataItemsATRequests.length; i++) {
+      var checkATRequestStatus   = dataItemsATRequests[i].get_cell("Status").innerHTML;
+      //console.log("checkOracleInvoiceNumber::::"+checkOracleInvoiceNumber);
+      if (checkATRequestStatus != "Completed") {
+        var cellATRequestStatus = MasterTableATRequests.getCellByColumnUniqueName(dataItemsATRequests[i], "AudioTranscriptionView");
+        cellATRequestStatus.className = "hiddenHyperlinkCell";
+      }
+    }
+  }
+
+
+  function modalPopupFeatures() {
+    var width = Math.min(1100, Math.max(880, Math.floor(window.screen.availWidth * 0.7)));
+    var height = Math.min(800, Math.max(600, Math.floor(window.screen.availHeight * 0.8)));
+    var left = window.screenX + Math.max(0, Math.floor((window.outerWidth - width) / 2));
+    var top = window.screenY + Math.max(0, Math.floor((window.outerHeight - height) / 2));
+
+    return 'width=' + width + ',height=' + height
+    + ',left=' + left + ',top=' + top
+    + ',resizable=yes,scrollbars=yes,status=no,toolbar=no,menubar=no,location=no';
+  }
+
+  //http://localhost:55555/Claim/123/attachments
+  function launchUrl() {
+    return "https://localhost:55554/Claim/<%= { mwf.Variables["ClaimID"] } %>/attachments";
+    // return "http://localhost:55555/";
+  }
+
+
+  // ---------------------------------------------------------------------------
+  // 3. The auto-post form
+  //
+  //    A real <form> POST sends application/x-www-form-urlencoded, so the JSON
+  //    travels as the value of one hidden field. The server reads it as a string
+  //    and deserializes. This is the pattern to use when you need a genuine
+  //    browser navigation POST (handoff to another app, no CORS preflight).
+  // ---------------------------------------------------------------------------
+  function autoPostForm(url, payload, target, popFeatures) {
+    let windowName = target;
+    let popup = null;
+
+
+    // Open the popup FIRST, empty and named, then aim the form at that name.
+    // Two reasons this order matters:
+    //   1. window.open must run synchronously inside the click handler or the
+    //      popup blocker kills it.
+    //   2. Opening it blank avoids a wasted GET to the endpoint — the POST is
+    //      what actually fills the window.
+
+    popup = window.open(
+      "",
+      windowName,
+      popFeatures
+    );
+    if (!popup || popup.closed) return { ok: false, blocked: true };
+    // Something to look at while the POST is in flight.
+    try {
+      popup.document.write(
+        "<!doctype html><title>Posting…</title>" +
+        "<body style='font:15px system-ui;padding:40px;color:#555'>Submitting attachments…</body>"
+      );
+      popup.document.close();
+    } catch (e) { /* cross-origin leftovers from a reused window — harmless */ }
+
+
+    const form = document.createElement("form");
+    form.name = "ClaimAIInsightsForm";   
+    form.method = "POST";
+    form.action = url;
+    form.target = windowName;
+    form.style.display = "none";
+
+    // Setting .value as a property means no escaping problem — the browser
+    // handles encoding when the form serializes.
+    const field = document.createElement("input");
+    field.type = "hidden";
+    field.name = "payload";
+    field.value = JSON.stringify(payload);
+    form.appendChild(field);
+
+
+    // Handy extras some endpoints expect alongside the blob:
+    const idField = document.createElement("input");
+    idField.type = "hidden";
+    idField.name = "token";
+    idField.value = "dev-token-0001";   //Temp value - to be replaced
+    form.appendChild(idField);
+
+    document.body.appendChild(form);
+    console.log(popup.document.documentElement.outerHTML);
+
+    form.submit();
+    form.remove();          // the navigation is already in flight
+
+    if (popup) popup.focus();
+    return { ok: true, popup };
+  }
+
+  function AddAIInsightstRequest() {
+
+    var url = launchUrl();
+    //Temp - for testing only
+    const claim = {
+      "claimId": <%= { mwf.Variables["ClaimID"] } %>,
+      "claimNumber": "<%= { mwf.Variables["ClaimNumber"] } %>,",
+      "files": [
+        {
+          "fileUrl": "tst2/OutboundDocuments/bulk update check status.png",
+          "filename": "bulk update check status.png",
+          "fileSize": 56643,
+          "dateUploaded": "2026-09-10T02:05:00-04:00",
+          "updatedBy": "Tina Smitch",
+          "documentType": "Supporting File",
+          "comments": ""
+        },
+        {
+          "fileUrl": "tst2/OutboundDocuments/InventoryReplacementReview_SK0063_0819072542.pdf",
+          "filename": "InventoryReplacementReview_SK0063_0819072542.pdf",
+          "fileSize": 238384,
+          "dateUploaded": "2026-09-12T22:02:00-04:00",
+          "updatedBy": "Alex Cooper",
+          "documentType": "Other",
+          "comments": "Testing Only"
+        }
+      ]
+    };
+
+    const result = autoPostForm(url, claim, "ClaimAttachments", modalPopupFeatures() );
+
+    if (result.blocked) {
+     // setStatus("The browser blocked the popup. Allow popups for this page and try again.", "err");
+      alert("The browser blocked the popup. Allow popups for this page and try again.");
+      return;
+    }
+
+    /*
+    var POPUP_NAME = 'DotNetClaimDashboard';
+
+    var popup = window.open('', POPUP_NAME, modalPopupFeatures());
+
+    if (!popup || typeof popup.closed === 'undefined') {
+      alert('Please allow pop-ups for this site to open DotNet Claim Dashboard.');
+      return;
+    }
+
+    // Every path below navigates this same window - a second popup is never opened.
+    function relaunch() {
+      popup.location.href = launchUrl();
+      popup.focus();
+    }
+
+    function isFreshWindow(popup) {
+      try {
+        return popup.location.href === 'about:blank';
+      } catch (e) {
+        return false;
+      }
+    }
+
+    if (isFreshWindow(popup)) {
+      relaunch();
+      return;
+    }
+
+    // A window carrying the dashboard: focus it if its session is alive, relaunch it in
+    // place if not.
+    popup.focus();
+    */
+
+  }
+</script>
+
+
+<!-- ======== HTML Section Start ======== -->
+<div class="sqf-layout" style="margin-bottom:0px;">
+  <div class="sqf-layout-row sqf-placeholder" style="padding-bottom:0px;margin-bottom:0px;">
+    <!-- =========== Audio Transcription Request Section Start ========== -->
+    <asp:UpdatePanel ID="upAudTransRequest" runat="server" UpdateMode="Conditional"><ContentTemplate>
+      <div id="loaderAudTransRequestSection">
+        <div id="loaderAudTransRequest" class="loader hide">                        
+        </div>
+      </div>
+      <div class="sqf-section">
+        <div class="sqf-row">
+          <div class="sqf-col-xs-12 sqf-col-md-12 sqf-control-group-v" style="padding:0px;">
+            <div class="sqf-section" ID="AudTransRequestSection" style="padding:0px 13px;">
+              <!-- ======== New AudTrans Request Panel Section Start ======== -->            
+              <div class="panel" id="addNewAudTransRequestPanel" style="display:none;margin-top:1em;">
+                <div class="panel-heading" data-toggle="collapse" href="#collapseAudTransGrid">
+                  <h2 class="panel-title"><sq8:Text runat="server" ID="AudTransGridSectionLabel" Text="Send File for Transcription"></sq8:Text></h2>
+                  <sq8:Label runat="server" Text="A single file can be used to send a request."></sq8:Label>
+                </div>
+                <div class="panel-collapse collapse show" style="padding:4px 10px 10px;" ID="collapseCGVehicleGrid">
+                  <div class="panel-body">
+                    <div class="sqf-section">                      
+                      <div class="sqf-row sqf-control-group-v">	
+                        <!-- ======== Attachment Section Start ======== -->
+                        <div class="sqf-col-xs-12 sqf-col-md-12 sqf-control-group-v" style="padding:0px;margin-top: -1.5em;">
+                          <sq8:SubView runat="server" ID="SubViewAudTransAttachment" VirtualPath="../../../Common Components/Common Components_Insurance/Attachments/ClaimGeniusAttachmentView.ascx"></sq8:SubView>
+                        </div>   
+                        <!-- ======== Attachment Section End ======== -->
+                      </div>
+                    </div>
+
+                    <div class="sqf-row sqf-control-group-v">
+                      <div class="sqf-col-xs-12 sqf-control-group-v text-center">
+                        <!-- =======  Clear Button Action Section Start ==== -->
+                        <sq8:Button runat="server" Text="Reset" ID="btnClearAudTransRequest" CssClass="customResetBtn" UseSubmitBehavior="false" AutoPostBack="false" CausesValidation="false" OnClientClicked="clearATRequestFields"></sq8:Button>
+                        <!-- =======  Clear Button Action Section Start ==== -->
+                        <!-- =======  Cancel Button Action Section Start ==== -->
+                        &nbsp;&nbsp;<sq8:Button runat="server" Text="Cancel" ID="btnCancelAudTransRequest" CssClass="customResetBtn" CausesValidation="false" AutoPostBack="false" OnClientClicked="cancelATRequestCommand"></sq8:Button>
+                        <!-- =======  Cancel Button Action Section Start ==== -->
+                        <!-- =======  Insert Button Action Section Start ==== -->
+                        &nbsp;&nbsp;<sq8:Button runat="server" Text="Submit"  ID="btnCreateAudTransRequest" CssClass="customMainActionBtn" CausesValidation="true" OnClientClicked="AddNewAudioTranscriptRequest"  ValidationGroup="VG_AudTransRequest" SingleClick="true" SingleClickText="Submitting.."></sq8:Button>
+                        <!-- =======  Insert Button Action Section End ==== -->
+
+                        <!-- Temp Button Action to test AI Insight Integration  ==== ------>
+                        &nbsp;&nbsp;<sq8:Button runat="server" Text="Submit to AI Insights"  ID="btnCreateAIInsightRequest" CssClass="customMainActionBtn" CausesValidation="false" OnClientClicked="AddAIInsightstRequest" AutoPostBack="false"></sq8:Button>
+                        <!-- Temp Button Action to test AI Insight Integration  ==== ------>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- ======== New AudTrans Panel Section End ======== -->
+            </div>
+            <br>
+            <!-- ======== Panel Section Start ======== -->
+            <div class="panel">
+              <!-- ======== Panel Header Section Start ======== -->
+              <div class="panel-heading" data-toggle="collapse" href="#collapseAudTrans">
+                <h2 class="panel-title"><sq8:Text runat="server" ID="AudTransRequestlabel" Text="Transcription request details"></sq8:Text></h2>
+              </div>
+              <!-- ======== Panel Header Section End ======== -->
+              <div class="panel-collapse collapse show" style="padding:4px 10px 10px;" ID="collapseAudTrans">
+                <!-- ======== Panel Body Section Start ======== -->
+                <div class="panel-body" style="padding-bottom:0px;padding-top:0px;">
+                  <div class="sqf-row">
+                    <div class="sqf-col-xs-12 sqf-col-md-12 sqf-control-group-v" style="padding-top:0px;">
+                      <div id="addNewAudTransRequestSection" style="display:inline-block;">
+                        <sq8:Button runat="server" ID="addNewAudTransRequestBtn" Text="Send request for Transcription" OnClientClicked="onAddNewAudTransRequest" CssClass="customSuccessBtnStyle customAddVehicleBtn" UseSubmitBehavior="false" AutoPostBack="false"></sq8:Button>
+                      </div>
+
+                      <!-- ======== Grid code comes here ======== -->
+                      <sq8:Grid runat="server" ID="GridAudTransRequests" DataSourceID="DataSourceGridAudTransRequests" Width="100%" style="overflow-x:scroll;" Skin="Cora" PageSize="5" ShowStatusBar="True"
+                                AutoGenerateColumns="False" GroupPanelPosition="Top" AllowSorting="True">
+                        <GroupingSettings ExpandAllTooltip="" CollapseAllTooltip=""></GroupingSettings>
+
+                        <HierarchySettings ExpandAllTooltip="" CollapseAllTooltip=""></HierarchySettings>
+
+                        <ValidationSettings ValidationGroup="VG_CGRequest"></ValidationSettings>
+
+                        <ClientSettings>
+                          <ClientEvents OnGridCreated="function(){updateGridATRequestsValues(&#39;GridAudTransRequests&#39;)}"></ClientEvents>
+                        </ClientSettings>
+
+                        <MasterTableView InsertItemPageIndexAction="ShowItemOnFirstPage" DataKeyNames="Id" DataSourceID="DataSourceGridAudTransRequests"><NoRecordsTemplate>
+                          <div class="noRecordsTemplate">
+                          </div>
+
+
+                          </NoRecordsTemplate>
+
+                          <CommandItemSettings AddNewRecordText="Create Audio Transcription request" PrevFrozenColumnText="" ShowAddNewRecordButton="False"></CommandItemSettings>
+
+                          <RowIndicatorColumn FilterControlAltText=""></RowIndicatorColumn>
+
+                          <ExpandCollapseColumn FilterControlAltText=""></ExpandCollapseColumn>
+                          <Columns>
+
+
+
+                            <sq8:GridNumericColumn DecimalDigits="0" DataField="Id" ReadOnly="True" HeaderText="Id" SortExpression="Id" Display="False" UniqueName="Id" DataType="System.Int64" FilterControlAltText="">
+                              <ColumnValidationSettings>
+                                <RequiredFieldValidator ForeColor=""></RequiredFieldValidator>
+                              </ColumnValidationSettings>
+                            </sq8:GridNumericColumn>
+
+                            <sq8:GridNumericColumn DecimalDigits="0" Display="false" DataField="ClaimID" HeaderText="ClaimID" SortExpression="ClaimID" UniqueName="ClaimID" DataType="System.Int64" FilterControlAltText="">
+                              <ColumnValidationSettings>
+                                <RequiredFieldValidator ForeColor=""></RequiredFieldValidator>
+                              </ColumnValidationSettings>
+                            </sq8:GridNumericColumn>
+                            <sq8:GridNumericColumn DecimalDigits="0" DataField="AssignmentID" HeaderText="AssignmentID" SortExpression="AssignmentID" UniqueName="AssignmentID" DataType="System.Int64" FilterControlAltText="">
+                              <ColumnValidationSettings>
+                                <RequiredFieldValidator ForeColor=""></RequiredFieldValidator>
+                              </ColumnValidationSettings>
+                            </sq8:GridNumericColumn>
+                            <sq8:GridBoundColumn DataField="RequestID" HeaderText="RequestID" SortExpression="RequestID" UniqueName="RequestID" FilterControlAltText="">
+                              <ColumnValidationSettings>
+                                <RequiredFieldValidator ForeColor=""></RequiredFieldValidator>
+                              </ColumnValidationSettings>
+                            </sq8:GridBoundColumn>
+                            <sq8:GridBoundColumn DataField="FileName" HeaderText="FileName" SortExpression="FileName" UniqueName="FileName" FilterControlAltText="">
+                              <ColumnValidationSettings>
+                                <RequiredFieldValidator ForeColor=""></RequiredFieldValidator>
+                              </ColumnValidationSettings>
+                            </sq8:GridBoundColumn>
+                            <sq8:GridBoundColumn DataField="CreationDate" DataFormatString="{0:d}" HeaderText="Request Date" SortExpression="CreationDate" UniqueName="CreationDate" FilterControlAltText="">
+                              <ColumnValidationSettings>
+                                <RequiredFieldValidator ForeColor=""></RequiredFieldValidator>
+                              </ColumnValidationSettings>
+                            </sq8:GridBoundColumn>
+                            <sq8:GridBoundColumn DataField="Status" HeaderText="Status" SortExpression="Status" UniqueName="Status" FilterControlAltText="">
+                              <ColumnValidationSettings>
+                                <RequiredFieldValidator ForeColor=""></RequiredFieldValidator>
+                              </ColumnValidationSettings>
+                            </sq8:GridBoundColumn>   
+                            <sq8:GridBoundColumn DataField="Message" HeaderText="Message" SortExpression="Message" UniqueName="Message" FilterControlAltText="">
+                              <ColumnValidationSettings>
+                                <RequiredFieldValidator ForeColor=""></RequiredFieldValidator>
+                              </ColumnValidationSettings>
+                            </sq8:GridBoundColumn>
+                            <sq8:GridHyperLinkColumn DataNavigateUrlFields="RequestId" HeaderText="View Result" DataNavigateUrlFormatString="javascript:openViewAudioTransacriptionPopup(&#39;{0}&#39;)" DataTextFormatString="{0}" Text="View" AllowSorting="False" FilterImageToolTip="" UniqueName="AudioTranscriptionView" FilterControlAltText="">
+                              <HeaderStyle HorizontalAlign="Center"></HeaderStyle>
+                              <ItemStyle HorizontalAlign="Center"></ItemStyle>
+                            </sq8:GridHyperLinkColumn>
+                          </Columns>
+                          <SortExpressions>
+                            <sqr8:GridSortExpression FieldName="Id" SortOrder="Descending"></sqr8:GridSortExpression>
+                          </SortExpressions>
+
+                          <EditFormSettings>
+                            <EditColumn FilterControlAltText=""></EditColumn>
+                          </EditFormSettings>
+
+                          <PagerStyle GoToPageButtonToolTip=""></PagerStyle>
+
+                          <AutoGeneratedEditColumnSettings ButtonType="ImageButton"></AutoGeneratedEditColumnSettings>
+
+                          <AutoGeneratedDeleteColumnSettings ButtonType="ImageButton"></AutoGeneratedDeleteColumnSettings>
+                        </MasterTableView>
+
+                        <PagerStyle GoToPageButtonToolTip=""></PagerStyle>
+
+                        <FilterMenu EnableImageSprites="True"></FilterMenu>
+                      </sq8:Grid>
+                      <sq8:DataSource runat="server" ID="DataSourceGridAudTransRequests" QueryName="BC_CT_Transcription_Request" Where="AssignmentID == @AssignmentID">
+                        <WhereParameters>
+                          <sq:ExpressionParameter Expression="wf.variables[&quot;AssignmentID&quot;]" Name="AssignmentID"></sq:ExpressionParameter>
+                        </WhereParameters>
+                      </sq8:DataSource>
+                      <sq:BoundControl runat="server" TargetControlID="GridAudTransRequests"></sq:BoundControl>						  
+                    </div>
+
+                  </div>
+                </div>
+                <!-- ======== Panel Body Section End ======== -->
+              </div>
+            </div>
+            <!-- ======== Panel Section End ======== -->
+          </div>
+        </div>
+
+      </div>
+
+
+
+
+
+
+
+
+      </ContentTemplate>
+    </asp:UpdatePanel>
+    <!-- =========== CG Request Section End ======== -->
+
+  </div>
+
+
+
+</div>
+
+
+
+
+<sq:ODataEntityDataSource runat="server" ID="oDataSendAudTranscript"></sq:ODataEntityDataSource>
+
+<!-- ======== HTML Section End ======== -->

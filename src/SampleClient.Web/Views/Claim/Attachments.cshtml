@@ -59,12 +59,23 @@
                           font-size:14px; cursor:pointer; margin:0 6px; }
         .btn-reset { background:#f5566c; } .btn-cancel { background:#ee5253; } .btn-submit { background:#2eafd4; }
 
+        .claim-bar { display:flex; gap:40px; flex-wrap:wrap; align-items:baseline;
+                     background:#fff; border:1px solid #e3e7eb; border-radius:4px;
+                     margin:14px 20px 0; padding:12px 18px; }
+        .claim-bar .kv { font-size:13px; color:#4a4a4a; }
+        .claim-bar .kv b { display:block; color:#6b7c8c; font-weight:600; font-size:12px; margin-bottom:3px; }
+
         .err { margin:16px 20px; background:#f8f0ee; border:1px solid #e6cfc9; color:#8a4b3f;
                border-radius:6px; padding:11px 13px; font-size:13px; }
         .empty { padding:22px 14px; color:#8a8a8a; font-size:13px; }
     </style>
 </head>
 <body>
+    @* Claim context bar. Claim number is the only claim detail the attachments payload carries. *@
+    <div class="claim-bar">
+        <div class="kv"><b>Claim number</b>@(string.IsNullOrWhiteSpace(Model.ClaimNumber) ? "—" : Model.ClaimNumber)</div>
+    </div>
+
     <div class="panel-head">
         <span class="panel-title">Send File for AI Insights</span>
         <button type="button" class="chev" id="chev" aria-expanded="true" aria-controls="panel-body" title="Collapse">&#9662;</button>

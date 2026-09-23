@@ -148,7 +148,7 @@ public sealed class ClaimController : Controller
     // not a request body) and the user lands on the file-picker grid.
     [HttpPost("/Claim/{claimId:long}/attachments")]
     [IgnoreAntiforgeryToken]   // cross-app POST from Claims Manager; authenticate the caller instead
-    public IActionResult Attachments([FromRoute] long claimId, [FromForm] string classId, [FromForm] string payload)
+    public IActionResult Attachments([FromRoute] long claimId, [FromForm] string token, [FromForm] string payload)
     {
         var request = ClaimAttachmentsRequest.TryParse(payload, out var error);
         if (request is null)

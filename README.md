@@ -95,7 +95,7 @@ Besides its own submit form, `SampleClient.Web` accepts claims launched from **C
 existing web app. Clicking **Launch Sample Client** there performs a top-level browser form POST:
 
 ```
-POST /Claim/{claimId:long}/attachments     fields: classId, payload (JSON as a string)
+POST /Claim/{claimId:long}/attachments     fields: token, payload (JSON as a string)
 ```
 
 `SampleClient.Web` parses the payload and renders the **Send File for AI Insights** grid of the

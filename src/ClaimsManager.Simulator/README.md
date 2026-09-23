@@ -93,7 +93,7 @@ string in a form field:
 
 | Field | Meaning |
 |---|---|
-| `classId` | passed through by Claims Manager |
+| `token` | passed through by Claims Manager; **received but not yet validated** — see the open items below |
 | `payload` | the JSON document below, as a string |
 
 **Payload:**
@@ -158,5 +158,8 @@ malformed case.
 - **The grid's Submit button.** `SendForInsights` in `SampleClient.Web` echoes the selection as plain
   text; it does not yet validate each `fileUrl`, copy the blobs in, or call `CreateCaseAsync` /
   `EnqueueAsync`.
-- **Authentication.** The endpoint carries `[IgnoreAntiforgeryToken]` because this is a cross-app POST.
-  Authenticating the calling application is still an open item.
+- **Authentication.** The endpoint carries `[IgnoreAntiforgeryToken]` because this is a cross-app POST,
+  and the `token` field is currently **bound but never checked** — any value is accepted, including an
+  empty one. Deciding what a token is (shared secret, signed launch token, something issued per
+  claim) and validating it is still an open item. Until then the endpoint is effectively unauthenticated:
+  anyone who can reach it can render any payload they compose.
